@@ -8,20 +8,20 @@ extern crate serde_json;
 #[macro_use]
 extern crate failure;
 
+use failure::Error;
+use libmanta::moray::{MantaObject, MantaObjectShark};
 use moray::buckets;
 use moray::client::MorayClient;
 use moray::objects::{self, BatchPutOp, BatchRequest};
-use libmanta::moray::{MantaObject, MantaObjectShark};
-use slog::{o, Drain, Logger};
-use std::collections::HashMap;
-use failure::Error;
-use std::sync::Mutex;
 use quickcheck::{Arbitrary, StdThreadGen};
 use serde_json::Value;
+use slog::{o, Drain, Logger};
+use std::collections::HashMap;
+use std::sync::Mutex;
 
+use rand::distributions::Alphanumeric;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
 use std::net::{IpAddr, SocketAddr};
 
 // We can't use trust-dns-resolver here because it uses futures with a
@@ -44,15 +44,13 @@ fn get_srv_record(svc: &str, proto: &str, host: &str) -> Result<Srv, Error> {
     r.resolve_record::<Srv>(&query)?
         .choose(&mut rand::thread_rng())
         .map(|r| r.to_owned())
-        .ok_or_else(|| {
-            InternalError::CatchAll.into()
-        })
+        .ok_or_else(|| InternalError::CatchAll.into())
 }
 
 fn lookup_ip(host: &str) -> Result<IpAddr, Error> {
     match resolve_host(host)?.collect::<Vec<IpAddr>>().first() {
         Some(a) => Ok(*a),
-        None => Err(InternalError::CatchAll.into())
+        None => Err(InternalError::CatchAll.into()),
     }
 }
 
@@ -80,91 +78,90 @@ pub fn create_client(shard: u32, domain: &str) -> Result<MorayClient, Error> {
 }
 
 fn random_string(len: usize) -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(len)
-        .collect()
+    thread_rng().sample_iter(&Alphanumeric).take(len).collect()
 }
 
 fn gen_test_objects(num_objects: u32) -> HashMap<String, MantaObject> {
-	let mut test_objects = HashMap::new();
-	let mut g = StdThreadGen::new(10);
-	let mut rng = rand::thread_rng();
+    let mut test_objects = HashMap::new();
+    let mut g = StdThreadGen::new(10);
+    let mut rng = rand::thread_rng();
 
-	for _ in 0..num_objects {
-		let mut mobj = MantaObject::arbitrary(&mut g);
-		let mut sharks = vec![];
+    for _ in 0..num_objects {
+        let mut mobj = MantaObject::arbitrary(&mut g);
+        let mut sharks = vec![];
 
-		// first pass: 1 or 2
-		// second pass: 3 or 4
-		for i in 0..2 {
-			let shark_num = rng.gen_range(1 + i * 2, 3 + i * 2);
+        // first pass: 1 or 2
+        // second pass: 3 or 4
+        for i in 0..2 {
+            let shark_num = rng.gen_range(1 + i * 2, 3 + i * 2);
 
-			let shark = MantaObjectShark {
-				datacenter: String::from("foo"), //todo
-				manta_storage_id: format!("{}.stor.domain", shark_num),
-			};
-			sharks.push(shark);
-		}
-		mobj.sharks = sharks;
+            let shark = MantaObjectShark {
+                datacenter: String::from("foo"), //todo
+                manta_storage_id: format!("{}.stor.domain", shark_num),
+            };
+            sharks.push(shark);
+        }
+        mobj.sharks = sharks;
 
-		test_objects.insert(mobj.object_id.clone(), mobj);
-	}
+        test_objects.insert(mobj.object_id.clone(), mobj);
+    }
 
-	test_objects
+    test_objects
 }
-
 
 fn main() -> Result<(), Error> {
     let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
     let mut mclient = create_client(1, "perf2.scloud.host")?;
 
-    println!("===get or create bucket===");
-    if let Err(_) = mclient.get_bucket(BUCKET_NAME, bucket_opts.clone(), |_| {
-        Ok(())
-    }) {
-		let bucket_config = json!({
-			"index": {
-				"dirname": {
-				  "type": "string"
-				},
-				"name": {
-				  "type": "string"
-				},
-				"owner": {
-				  "type": "string"
-				},
-				"objectId": {
-				  "type": "string"
-				},
-				"type": {
-				  "type": "string"
-				}
-			}
-		});
+    let ignore_callback = |_bucket: &buckets::Bucket| Ok(());
 
-		match mclient.create_bucket(BUCKET_NAME, bucket_config, bucket_opts) {
-			Ok(()) => {
-				println!("Bucket Created Successfully");
-			},
-			Err(e) => {
-				eprintln!("Error Creating Bucket: {}", e);
-			}
-		}
+    println!("===get or create bucket===");
+    if mclient
+        .get_bucket(BUCKET_NAME, bucket_opts.clone(), ignore_callback)
+        .is_err()
+    {
+        let bucket_config = json!({
+            "index": {
+                "dirname": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "objectId": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+            }
+        });
+
+        match mclient.create_bucket(BUCKET_NAME, bucket_config, bucket_opts) {
+            Ok(()) => {
+                println!("Bucket Created Successfully");
+            }
+            Err(e) => {
+                eprintln!("Error Creating Bucket: {}", e);
+            }
+        }
     }
 
-	println!("Creating test objects");
-	let test_objects = gen_test_objects(10000);
+    println!("Creating test objects");
+    let test_objects = gen_test_objects(10000);
 
     println!("Seeding objects");
 
-	for (key, obj) in test_objects.iter() {
+    for (key, obj) in test_objects.iter() {
         let val = serde_json::to_value(obj).unwrap();
 
-        mclient.put_object(BUCKET_NAME, key, val, &opts, |_| {
-            Ok(())
-        }).expect("put object");
+        mclient
+            .put_object(BUCKET_NAME, key, val, &opts, |_| Ok(()))
+            .expect("put object");
     }
 
     println!(" ==== pass 1, sequential first then batch ====");
@@ -184,37 +181,38 @@ fn main() -> Result<(), Error> {
     run_sequential_test(&mut mclient, seq_objects)?;
 
     Ok(())
-
 }
 
 fn run_sequential_test(
     mclient: &mut MorayClient,
-    objects: HashMap<String, Value>
+    objects: HashMap<String, Value>,
 ) -> Result<(), Error> {
     println!("Updating objects sequentially");
     let opts = objects::MethodOptions::default();
     let start = std::time::Instant::now();
     for (key, obj) in objects.iter() {
-        mclient.put_object(BUCKET_NAME, key, obj.clone(), &opts, |_| {
-            Ok(())
-        }).expect("put object");
+        mclient
+            .put_object(BUCKET_NAME, key, obj.clone(), &opts, |_| Ok(()))
+            .expect("put object");
     }
-    println!("Done updating objects sequentially : {}ms", start.elapsed()
-        .as_millis());
+    println!(
+        "Done updating objects sequentially : {}ms",
+        start.elapsed().as_millis()
+    );
 
     Ok(())
 }
 
-fn alter_objects(
-    objects: &HashMap<String, MantaObject>
-) -> HashMap<String, Value> {
+fn alter_objects(objects: &HashMap<String, MantaObject>) -> HashMap<String, Value> {
     let mut rng = rand::thread_rng();
     let mut altered_objects: HashMap<String, Value> = HashMap::new();
     let rand_string = random_string(10);
     let rand_id: u16 = rng.gen();
 
-    println!("Altering objects.  datacenter: {} | storage id: {}",
-             rand_string, rand_id);
+    println!(
+        "Altering objects.  datacenter: {} | storage id: {}",
+        rand_string, rand_id
+    );
 
     for (k, v) in objects.iter() {
         let mut mobj: MantaObject = v.clone();
@@ -234,7 +232,7 @@ fn alter_objects(
 fn run_batch_test(
     mclient: &mut MorayClient,
     objects: HashMap<String, Value>,
-    batch_size: u32
+    batch_size: u32,
 ) -> Result<(), Error> {
     println!("Updating objects in batches of {}", batch_size);
     let mut batch: Vec<BatchRequest> = vec![];
@@ -258,9 +256,10 @@ fn run_batch_test(
         }
     }
 
-    println!("Done updating objects in batches: {}ms",
-             start.elapsed().as_millis());
+    println!(
+        "Done updating objects in batches: {}ms",
+        start.elapsed().as_millis()
+    );
 
     Ok(())
-
 }
