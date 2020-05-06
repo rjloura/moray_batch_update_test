@@ -5,8 +5,7 @@ authors = ["Rui Loura <rui@joyent.com>"]
 edition = "2018"
 
 [dependencies]
-#moray = { path = "../../", features = ["postgres"]}
-moray = { path = "../../"}
+moray = { git = "https://github.com/joyent/rust-moray", tag="v0.10.0" }
 #libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" , features = ["postgres"]}
 libmanta = { git = "https://github.com/joyent/rust-libmanta", branch="arbitrary_i64_max" }
 serde = { version = "1.0.89", features = ["derive"] }
