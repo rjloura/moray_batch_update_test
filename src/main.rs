@@ -38,7 +38,7 @@ enum InternalError {
     CatchAll,
 }
 
-#[derive(Clap)]
+#[derive(Debug, Clap)]
 #[clap(version = "1.0", author = "Rui Loura <rjloura@gmail.com")]
 struct Arguments {
     #[clap(short, long, default_value = "100")]
@@ -187,10 +187,14 @@ fn main() -> Result<(), Error> {
             .expect("put object");
     }
 
+dbg!(&args);
     if args.batch_only {
-        println!("Running batch only test");
-        let batch_objects = alter_objects(&test_objects);
-        run_batch_test(&mut mclient, batch_objects, args.batch_size)?;
+	for i in vec![500, 200, 100, 10, 5, 2, 1] {
+		let batch_size = i;
+		println!("Running batch only test");
+		let batch_objects = alter_objects(&test_objects);
+		run_batch_test(&mut mclient, batch_objects, batch_size)?;
+	}
     } else if args.sequential_only {
         println!("Running sequential only test");
         let altered_objects = alter_objects(&test_objects);
@@ -282,9 +286,11 @@ fn run_batch_test(
     let mut batch: Vec<BatchRequest> = vec![];
     let mut batch_count = 0;
     let opts = objects::MethodOptions::default();
+	let mut count = 0;
     let start = std::time::Instant::now();
 
     for (key, value) in objects.iter() {
+	count += 1;
         batch.push(BatchRequest::Put(BatchPutOp {
             bucket: BUCKET_NAME.to_string(),
             options: opts.clone(),
@@ -301,7 +307,7 @@ fn run_batch_test(
     }
 
     println!(
-        "Done updating objects in batches: {}ms",
+        "\nDone updating {} objects in batches: {}ms\n", count,
         start.elapsed().as_millis()
     );
 
