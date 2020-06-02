@@ -133,7 +133,6 @@ fn gen_test_objects(num_objects: u32) -> HashMap<String, MantaObject> {
 
 fn main() -> Result<(), Error> {
     let args: Arguments = Arguments::parse();
-    dbg!(&args);
     let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
     let mut mclient = create_client(1, "perf2.scloud.host")?;
@@ -178,7 +177,7 @@ fn main() -> Result<(), Error> {
     println!("Creating test objects");
     let test_objects = gen_test_objects(args.num_objects);
 
-    println!("Seeding objects");
+    println!("Seeding {} objects", args.num_objects);
 
     for (key, obj) in test_objects.iter() {
         let val = serde_json::to_value(obj).unwrap();
