@@ -231,26 +231,6 @@ fn run_comparison(
     Ok(())
 }
 
-fn run_sequential_test(
-    mclient: &mut MorayClient,
-    objects: HashMap<String, Value>,
-) -> Result<(), Error> {
-    println!("Updating objects sequentially");
-    let opts = objects::MethodOptions::default();
-    let start = std::time::Instant::now();
-    for (key, obj) in objects.iter() {
-        mclient
-            .put_object(BUCKET_NAME, key, obj.clone(), &opts, |_| Ok(()))
-            .expect("put object");
-    }
-    println!(
-        "Done updating objects sequentially : {}ms",
-        start.elapsed().as_millis()
-    );
-
-    Ok(())
-}
-
 fn alter_objects(objects: &HashMap<String, MantaObject>) -> HashMap<String, Value> {
     let mut rng = rand::thread_rng();
     let mut altered_objects: HashMap<String, Value> = HashMap::new();
@@ -308,6 +288,26 @@ fn run_batch_test(
 
     println!(
         "\nDone updating {} objects in batches: {}ms\n", count,
+        start.elapsed().as_millis()
+    );
+
+    Ok(())
+}
+
+fn run_sequential_test(
+    mclient: &mut MorayClient,
+    objects: HashMap<String, Value>,
+) -> Result<(), Error> {
+    println!("Updating objects sequentially");
+    let opts = objects::MethodOptions::default();
+    let start = std::time::Instant::now();
+    for (key, obj) in objects.iter() {
+        mclient
+            .put_object(BUCKET_NAME, key, obj.clone(), &opts, |_| Ok(()))
+            .expect("put object");
+    }
+    println!(
+        "Done updating objects sequentially : {}ms",
         start.elapsed().as_millis()
     );
 
