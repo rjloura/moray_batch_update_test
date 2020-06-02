@@ -297,7 +297,14 @@ fn run_batch_test(
         if batch_count == batch_size {
             mclient.batch(&batch, &opts, |_| Ok(()))?;
             batch.clear();
+            batch_count = 0;
         }
+    }
+
+    if batch.len() != 0 {
+        println!("Warning: issuing batch request with {} operations", batch
+        .len());
+        mclient.batch(&batch, &opts, |_| Ok(()))?;
     }
 
     println!(
