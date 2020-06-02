@@ -8,9 +8,6 @@ extern crate serde_json;
 #[macro_use]
 extern crate failure;
 
-#[macro_use]
-extern crate clap;
-
 use clap::Clap;
 use failure::Error;
 use libmanta::moray::{MantaObject, MantaObjectShark};
@@ -48,7 +45,7 @@ struct Arguments {
     num_objects: u32,
     /// Some input. Because this isn't an Option<T> it's required to be used
     #[clap(short, long, default_value = "50")]
-    batch_size: u16,
+    batch_size: u32,
 
     #[clap(short, long, conflicts_with = "sequential_only")]
     batch_only: bool,
@@ -129,8 +126,12 @@ fn gen_test_objects(num_objects: u32) -> HashMap<String, MantaObject> {
     test_objects
 }
 
+//
+// --- Main Line ---
+//
+
 fn main() -> Result<(), Error> {
-    let args = Arguments::parse();
+    let args: Arguments = Arguments::parse();
     let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
     let mut mclient = create_client(1, "perf2.scloud.host")?;
@@ -173,7 +174,7 @@ fn main() -> Result<(), Error> {
     }
 
     println!("Creating test objects");
-    let test_objects = gen_test_objects(10000);
+    let test_objects = gen_test_objects(args.num_objects);
 
     println!("Seeding objects");
 
@@ -185,21 +186,42 @@ fn main() -> Result<(), Error> {
             .expect("put object");
     }
 
+    if args.batch_only {
+        println!("Running batch only test");
+        let batch_objects = alter_objects(&test_objects);
+        run_batch_test(&mut mclient, batch_objects, args.batch_size)?;
+    } else if args.sequential_only {
+        println!("Running sequential only test");
+        let altered_objects = alter_objects(&test_objects);
+        run_sequential_test(&mut mclient, altered_objects)?;
+    } else {
+        run_comparison(&mut mclient, &test_objects, args.batch_size)?;
+    }
+
+    Ok(())
+}
+
+fn run_comparison(
+    mclient: &mut MorayClient,
+    test_objects: &HashMap<String, MantaObject>,
+    batch_size: u32,
+) -> Result<(), Error> {
+    println!(" ==== running comparison ====");
     println!(" ==== pass 1, sequential first then batch ====");
 
-    let altered_objects = alter_objects(&test_objects);
-    run_sequential_test(&mut mclient, altered_objects)?;
+    let altered_objects = alter_objects(test_objects);
+    run_sequential_test(mclient, altered_objects)?;
 
-    let batch_objects = alter_objects(&test_objects);
-    run_batch_test(&mut mclient, batch_objects, 50)?;
+    let batch_objects = alter_objects(test_objects);
+    run_batch_test(mclient, batch_objects, batch_size)?;
 
     println!("\n ==== pass 2, batch first then sequential ====");
 
-    let batch_objects = alter_objects(&test_objects);
-    run_batch_test(&mut mclient, batch_objects, 50)?;
+    let batch_objects = alter_objects(test_objects);
+    run_batch_test(mclient, batch_objects, batch_size)?;
 
-    let seq_objects = alter_objects(&test_objects);
-    run_sequential_test(&mut mclient, seq_objects)?;
+    let seq_objects = alter_objects(test_objects);
+    run_sequential_test(mclient, seq_objects)?;
 
     Ok(())
 }
