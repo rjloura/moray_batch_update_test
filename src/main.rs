@@ -189,7 +189,7 @@ fn main() -> Result<(), Error> {
 
 dbg!(&args);
     if args.batch_only {
-	for i in vec![500, 200, 100, 10, 5, 2, 1] {
+	for i in vec![500, 200, 100, 50, 10, 5, 2, 1] {
 		let batch_size = i;
 		println!("Running batch only test");
 		let batch_objects = alter_objects(&test_objects);
@@ -281,8 +281,9 @@ fn run_batch_test(
         batch_count += 1;
 
         if batch_count == batch_size {
-            mclient.batch(&batch, &opts, |_| Ok(()))?;
+            mclient.batch(&batch, &opts, |r| Ok(()))?;
             batch.clear();
+		batch_count = 0;
         }
     }
 
