@@ -43,14 +43,15 @@ enum InternalError {
 struct Arguments {
     #[clap(short, long, default_value = "100")]
     num_objects: u32,
-    /// Some input. Because this isn't an Option<T> it's required to be used
-    #[clap(short, long, default_value = "50")]
+    #[clap(long, default_value = "50")]
     batch_size: u32,
 
-    #[clap(short, long, conflicts_with = "sequential_only")]
+    // Can't find docs on how to use "conflicts_with" but simply adding
+    //      conflicts_with = "sequential_only"
+    // results in an error
+    #[clap(long)]
     batch_only: bool,
-
-    #[clap(short, long, conflicts_with = "batch_only")]
+    #[clap(long)]
     sequential_only: bool,
 }
 
@@ -132,6 +133,7 @@ fn gen_test_objects(num_objects: u32) -> HashMap<String, MantaObject> {
 
 fn main() -> Result<(), Error> {
     let args: Arguments = Arguments::parse();
+    dbg!(&args);
     let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
     let mut mclient = create_client(1, "perf2.scloud.host")?;
