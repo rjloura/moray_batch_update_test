@@ -8,6 +8,10 @@ extern crate serde_json;
 #[macro_use]
 extern crate failure;
 
+#[macro_use]
+extern crate clap;
+
+use clap::Clap;
 use failure::Error;
 use libmanta::moray::{MantaObject, MantaObjectShark};
 use moray::buckets;
@@ -35,6 +39,22 @@ static BUCKET_NAME: &str = "rust_batch_test_bucket";
 enum InternalError {
     #[fail(display = "catchall")]
     CatchAll,
+}
+
+#[derive(Clap)]
+#[clap(version = "1.0", author = "Rui Loura <rjloura@gmail.com")]
+struct Arguments {
+    #[clap(short, long, default_value = "100")]
+    num_objects: u32,
+    /// Some input. Because this isn't an Option<T> it's required to be used
+    #[clap(short, long, default_value = "50")]
+    batch_size: u16,
+
+    #[clap(short, long, conflicts_with = "sequential_only")]
+    batch_only: bool,
+
+    #[clap(short, long, conflicts_with = "batch_only")]
+    sequential_only: bool,
 }
 
 // Get the SRV record which gives us the target and port of the moray service.
@@ -110,6 +130,7 @@ fn gen_test_objects(num_objects: u32) -> HashMap<String, MantaObject> {
 }
 
 fn main() -> Result<(), Error> {
+    let args = Arguments::parse();
     let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
     let mut mclient = create_client(1, "perf2.scloud.host")?;
